@@ -145,12 +145,20 @@ function wc_tensile_payments_gateway_init() {
 					'default'     => 'yes',
 					'desc_tip'    => true,
 				),
+				'sandbox_client_id' => array(
+					'title'       => 'Sandbox Client ID',
+					'type'        => 'text'
+				),
+				'sandbox_client_secret' => array(
+					'title'       => 'Sandbox Client Secret',
+					'type'        => 'password',
+				),
 				'client_id' => array(
-					'title'       => 'Client ID',
+					'title'       => 'Live Client ID',
 					'type'        => 'text'
 				),
 				'client_secret' => array(
-					'title'       => 'Client Secret',
+					'title'       => 'Live Client Secret',
 					'type'        => 'password',
 				),
 			) );
