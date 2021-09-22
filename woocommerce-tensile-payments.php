@@ -9,8 +9,8 @@
  */
 defined( 'ABSPATH' ) or exit;
 
-include plugin_dir_path(__FILE__)."cancel.php";
-include plugin_dir_path(__FILE__)."success.php";
+/* include plugin_dir_path(__FILE__)."cancel.php";
+include plugin_dir_path(__FILE__)."success.php"; */
 
 // Make sure WooCommerce is active
 if ( ! in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
@@ -86,8 +86,12 @@ function wc_tensile_payments_gateway_init() {
 			// Define user set variables
 			$this->title        = $this->get_option( 'title' );
 			$this->description  = $this->get_option( 'description' );
-			$this->instructions = $this->get_option( 'instructions', $this->description );
+			$this->instructions = $this->get_option( 'instructions', $this->instructions );
+			$this->api_endpoint = $this->get_option( 'api_endpoint', $this->api_endpoint );
+			$this->checkout_app_url = $this->get_option( 'checkout_app_url', $this->checkout_app_url );
 			$this->testmode = $this->get_option( 'testmode', $this->testmode );
+			$this->sandbox_client_id = $this->get_option( 'sandbox_client_id', $this->client_id );
+			$this->sandbox_client_secret = $this->get_option( 'sandbox_client_secret', $this->client_secret );
 			$this->client_id = $this->get_option( 'client_id', $this->client_id );
 			$this->client_secret = $this->get_option( 'client_secret', $this->client_secret );
 		  
@@ -136,6 +140,14 @@ function wc_tensile_payments_gateway_init() {
 					'description' => __( 'Instructions that will be added to the thank you page and emails.', 'wc-tensile-payments' ),
 					'default'     => '',
 					'desc_tip'    => true,
+				),
+				'api_endpoint' => array(
+					'title'       => 'API Endpoint',
+					'type'        => 'text'
+				),
+				'checkout_app_url' => array(
+					'title'       => 'Checkout App Url',
+					'type'        => 'text'
 				),
 				'testmode' => array(
 					'title'       => 'Test mode',
@@ -198,7 +210,20 @@ function wc_tensile_payments_gateway_init() {
 		 * @return array
 		 */
 		public function process_payment( $order_id ) {
-	
+			global $wpdb;
+			global $woocommerce;
+			$tensiledata = get_option('woocommerce_woocommerce_tensile_payments_settings');
+			if($tensiledata['testmode'] == 'yes')
+			{
+				$clientid = $tensiledata['sandbox_client_id'];
+				$clientsecret = $tensiledata['sandbox_client_secret'];
+			}
+			else
+			{
+				$clientid = $tensiledata['client_id'];
+				$clientsecret = $tensiledata['client_secret'];
+			}				
+			
 			$order = wc_get_order( $order_id );
 			
 			$subtotal = $order->get_subtotal();
@@ -221,8 +246,8 @@ function wc_tensile_payments_gateway_init() {
 			   $product_type = $item->get_type();
 			   $oitems .= '{';
 			   $oitems .= '"name":"'.$product_name.'",';
-			   $oitems .= '"quantity":"'.$quantity.'",';
-			   $oitems .= '"price":"'.$total1.'"';
+			   $oitems .= '"quantity":'.$quantity.',';
+			   $oitems .= '"price":'.$total1;
 			   $oitems .= '}';
 			}
 			$oitems .= ']';
@@ -240,28 +265,55 @@ function wc_tensile_payments_gateway_init() {
 			$curl = curl_init();
 
 			curl_setopt_array($curl, array(
-			  CURLOPT_URL => 'https://api-gateway-east.dev.tensilepayments.com/payments',
-			  CURLOPT_RETURNTRANSFER => true,
-			  CURLOPT_ENCODING => '',
-			  CURLOPT_MAXREDIRS => 10,
-			  CURLOPT_TIMEOUT => 0,
-			  CURLOPT_FOLLOWLOCATION => true,
-			  CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-			  CURLOPT_CUSTOMREQUEST => 'POST',
-			  CURLOPT_POSTFIELDS =>$data,
-			  CURLOPT_HTTPHEADER => array(
-				'correlation-id: yooo',
-				'client_id: 4aa9b5ba-7583-4a11-938a-d1cfce73ec45',
-				'client_secret: 0e6424a414e84a639b42ae6c02a0919485db94222291b258ac21321cfecfdd6aa2bccbe095068e5fd210af14f0b5f0048a9ac129df04ab3389bf50a3c3803e27250729566ea73420d9f4ab16f1618a52ed0502626e91c7b500c9df5d8f5f6e3ffbbb302c22738f2ff24fa8e293e9bb8f908ed565bbd9dbb63f6b1d71b08ff8785cda8120f86f0ac5f4d1104b9360965437fcd1cb9b7bbebfc6803a42b970d62e25abe8e1b79219a5b799a633558cbdf5847bac8942a36a9d303424c1d35df0caef30f78f52d402c5bce57fe9f9b1ca7e22a33f719becfb7d89fb8ad9443738f2a96c066dc2b1f6d66c3b550ba226175f8f586f9189323ac411ce643fae94f47a',
-				'Content-Type: application/json'
-			  ),
+					CURLOPT_URL => 'https://api-gateway-east.dev.tensilepayments.com/payments',
+					CURLOPT_RETURNTRANSFER => true,
+					CURLOPT_ENCODING => '',
+					CURLOPT_MAXREDIRS => 10,
+					CURLOPT_TIMEOUT => 0,
+					CURLOPT_FOLLOWLOCATION => true,
+					CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+					CURLOPT_CUSTOMREQUEST => 'POST',
+					CURLOPT_POSTFIELDS =>'{
+								"subtotal" : '.$subtotal.',
+								"total" : '.$total.',
+								"items" : '.$oitems.',
+								"variable_tax" : false,
+								"variable_shipping" : false,
+								"shipping_required" : false,
+								"redirect_uri_success" : "google.com",
+								"redirect_uri_cancel" : "google.com",
+								"payment_type": "one-off"
+							}', 
+					CURLOPT_HTTPHEADER => array(
+								'correlation-id: yooo',
+								'client_id:'.$clientid,
+								'client_secret:'.$clientsecret,
+								'Accept: application/json;v=2',
+								'Origin: localhost',
+								'Content-Type: application/json'
+				  ),
 			));
 
 			$response = curl_exec($curl);
 
 			curl_close($curl);
-			echo $response;
+			$res = json_decode($response,true);
+			
+			$rurl = '';
+			if($res['payment_id'])
+			{
+				$rurl = 'https://checkout.dev.tensilepayments.com/signup/payment/'.$res['payment_id'].'?merchant_name='.$res['merchant_name'].'&total='.$res['total'];
+				$order->update_status('completed', __( 'Completed', 'woocommerce' ));
+				$order->reduce_order_stock();
 
+				// Remove cart
+				$woocommerce->cart->empty_cart();
+				return array(
+					'result' => 'success',
+					'redirect' => $rurl
+				);
+			}
+			
 			exit;
 		}
 	
