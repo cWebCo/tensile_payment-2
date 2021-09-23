@@ -97,10 +97,10 @@ function wc_tensile_payments_gateway_init() {
 		  
 			// Actions
 			add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
-			/* add_action( 'woocommerce_thankyou_' . $this->id, array( $this, 'thankyou_page' ) );
+			add_action( 'woocommerce_thankyou_' . $this->id, array( $this, 'thankyou_page' ) );
 		  
 			// Customer Emails
-			add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 ); */
+			/*add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 ); */
 		}
 	
 	
@@ -180,10 +180,17 @@ function wc_tensile_payments_gateway_init() {
 		/**
 		 * Output for the order received page.
 		 */
-		public function thankyou_page() {
-			if ( $this->instructions ) {
-				echo wpautop( wptexturize( $this->instructions ) );
+		public function thankyou_page($order_id) {
+			global $woocommerce;
+			if ( ! $order_id ) {
+				return;
 			}
+			$order = wc_get_order( $order_id );
+			$order->reduce_order_stock();
+
+			// Remove cart
+			$woocommerce->cart->empty_cart();
+			$order->update_status( 'completed' );
 		}
 	
 	
@@ -222,10 +229,11 @@ function wc_tensile_payments_gateway_init() {
 			{
 				$clientid = $tensiledata['client_id'];
 				$clientsecret = $tensiledata['client_secret'];
-			}				
+			}	
+			$api_endpoint = $tensiledata['api_endpoint'];			
+			$checkout_app_url = $tensiledata['checkout_app_url'];			
 			
 			$order = wc_get_order( $order_id );
-			
 			$subtotal = $order->get_subtotal();
 			$total = $order->get_total();
 			$oitems = '[';
@@ -250,6 +258,8 @@ function wc_tensile_payments_gateway_init() {
 			   $oitems .= '"price":'.$total1;
 			   $oitems .= '}';
 			}
+			$success_redirect_url = site_url().'/checkout/order-received/'.$order->get_id().'/?key='.$order->get_order_key();
+			$cancel_redirect_url = site_url().'/checkout';
 			$oitems .= ']';
 			$data = '{';
 			$data .= '"subtotal":"'.$subtotal.'",';
@@ -263,9 +273,10 @@ function wc_tensile_payments_gateway_init() {
 			$data .= '"payment_type":"one-off"';
 			$data .= '}';
 			$curl = curl_init();
+			
 
 			curl_setopt_array($curl, array(
-					CURLOPT_URL => 'https://api-gateway-east.dev.tensilepayments.com/payments',
+					CURLOPT_URL => $api_endpoint,
 					CURLOPT_RETURNTRANSFER => true,
 					CURLOPT_ENCODING => '',
 					CURLOPT_MAXREDIRS => 10,
@@ -280,8 +291,8 @@ function wc_tensile_payments_gateway_init() {
 								"variable_tax" : false,
 								"variable_shipping" : false,
 								"shipping_required" : false,
-								"redirect_uri_success" : "google.com",
-								"redirect_uri_cancel" : "google.com",
+								"redirect_uri_success" : "'.$success_redirect_url.'",
+								"redirect_uri_cancel" : "'.$cancel_redirect_url.'",
 								"payment_type": "one-off"
 							}', 
 					CURLOPT_HTTPHEADER => array(
@@ -302,12 +313,9 @@ function wc_tensile_payments_gateway_init() {
 			$rurl = '';
 			if($res['payment_id'])
 			{
-				$rurl = 'https://checkout.dev.tensilepayments.com/signup/payment/'.$res['payment_id'].'?merchant_name='.$res['merchant_name'].'&total='.$res['total'];
-				$order->update_status('completed', __( 'Completed', 'woocommerce' ));
-				$order->reduce_order_stock();
-
-				// Remove cart
-				$woocommerce->cart->empty_cart();
+				$rurl = $checkout_app_url.'/'.$res['payment_id'].'?merchant_name='.$res['merchant_name'].'&total='.$res['total'];
+				/* $order->update_status('completed', __( 'Completed', 'woocommerce' )); */
+				
 				return array(
 					'result' => 'success',
 					'redirect' => $rurl
