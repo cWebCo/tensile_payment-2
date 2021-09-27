@@ -313,7 +313,9 @@ function wc_tensile_payments_gateway_init() {
 			$rurl = '';
 			if($res['payment_id'])
 			{
-				$rurl = $checkout_app_url.'/'.$res['payment_id'].'?merchant_name='.$res['merchant_name'].'&total='.$res['total'];
+				/* $rurl = $checkout_app_url.'/'.$res['payment_id'].'?merchant_name='.$res['merchant_name'].'&total='.$res['total']; */
+				
+				$rurl = $checkout_app_url.'/'.$res['payment_id'];
 				/* $order->update_status('completed', __( 'Completed', 'woocommerce' )); */
 				
 				return array(
