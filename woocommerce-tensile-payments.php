@@ -285,6 +285,8 @@ function wc_tensile_payments_gateway_init() {
 					CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
 					CURLOPT_CUSTOMREQUEST => 'POST',
 					CURLOPT_POSTFIELDS =>'{
+								"merchant_id" : "MID01",
+								"merchant_name": "Chipotle",
 								"subtotal" : '.$subtotal.',
 								"total" : '.$total.',
 								"items" : '.$oitems.',
@@ -293,7 +295,20 @@ function wc_tensile_payments_gateway_init() {
 								"shipping_required" : false,
 								"redirect_uri_success" : "'.$success_redirect_url.'",
 								"redirect_uri_cancel" : "'.$cancel_redirect_url.'",
-								"payment_type": "one-off"
+								"payment_type": "one-off",
+								"shipping_address": {
+									"address_line_1": "'.$order->get_shipping_address_1().'",
+									"city": "'.$order->get_shipping_city().'",
+									"state": "'.$order->get_shipping_state().'",
+									"country": "'.$order->get_shipping_country().'",
+									"zip": "'.$order->get_shipping_postcode().'"
+								},
+								"user_info": {
+									"first_name": "'.$order->get_billing_first_name().'",
+									"last_name": "'.$order->get_billing_last_name().'",
+									"email": "'.$order->get_billing_email().'",
+									"phone_number": "'.$order->get_billing_phone().'"
+								}
 							}', 
 					CURLOPT_HTTPHEADER => array(
 								'correlation-id: yooo',
