@@ -76,9 +76,12 @@ function wc_tensile_payments_gateway_init() {
 			$this->id                 = 'woocommerce_tensile_payments';
 			$this->icon               = '';
 			$this->has_fields         = false;
-			$this->method_title       = __( 'Tensile Payments', 'wc-tensile-payments' );
+			$this->method_title       = __( 'Offset your order emissions at no cost with Tensile', 'wc-tensile-payments' );
 			$this->method_description = __( 'Lower your payment costs by allowing customers to pay with their bank accounts while also giving to causes you and they care about.', 'wc-tensile-payments' );
-		  
+			$this->supports           = array(
+            'products',
+            'refunds',
+			);
 			// Load the settings.
 			$this->init_form_fields();
 			$this->init_settings();
@@ -98,11 +101,13 @@ function wc_tensile_payments_gateway_init() {
 			// Actions
 			add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 			add_action( 'woocommerce_thankyou_' . $this->id, array( $this, 'thankyou_page' ) );
+			
 		  
 			// Customer Emails
 			/*add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 ); */
 		}
 	
+		
 	
 		/**
 		 * Initialize Gateway Settings Form Fields
@@ -122,7 +127,7 @@ function wc_tensile_payments_gateway_init() {
 					'title'       => __( 'Title', 'wc-tensile-payments' ),
 					'type'        => 'text',
 					'description' => __( 'This controls the title for the payment method the customer sees during checkout.', 'wc-tensile-payments' ),
-					'default'     => __( 'Tensile Payments', 'wc-tensile-payments' ),
+					'default'     => __( 'Offset your order emissions at no cost with Tensile', 'wc-tensile-payments' ),
 					'desc_tip'    => true,
 				),
 				
@@ -192,6 +197,14 @@ function wc_tensile_payments_gateway_init() {
 			$woocommerce->cart->empty_cart();
 			$order->update_status( 'completed' );
 		}
+		
+		/**
+		process refund 
+		**/
+		/* public function process_refund($order_id, $amount = null, $reason = '')
+		{
+			return true;
+		} */
 	
 	
 		/**
@@ -260,31 +273,31 @@ function wc_tensile_payments_gateway_init() {
 			}
 			$success_redirect_url = site_url().'/checkout/order-received/'.$order->get_id().'/?key='.$order->get_order_key();
 			$cancel_redirect_url = site_url().'/checkout';
+			if($order->get_shipping_address_1())
+			{
+				$shipping_required = 'true';
+			}
+			else
+			{
+				$shipping_required = 'false';
+			}
 			$oitems .= ']';
-			$data = '{';
+			/* $data = '{';
 			$data .= '"subtotal":"'.$subtotal.'",';
 			$data .= '"total":"'.$total.'",';
 			$data .= '"items":"'.$oitems.'",';
-			$data .= '"variable_tax":"false",';
+			$data .= '"variable_tax":"'.$shipping_required.'",';
 			$data .= '"variable_shipping":"false",';
 			$data .= '"shipping_required":"false",';
 			$data .= '"redirect_uri_success":"google.com",';
 			$data .= '"redirect_uri_cancel":"google.com",';
 			$data .= '"payment_type":"one-off"';
-			$data .= '}';
+			$data .= '}'; */
 			$curl = curl_init();
 			
-
-			curl_setopt_array($curl, array(
-					CURLOPT_URL => $api_endpoint,
-					CURLOPT_RETURNTRANSFER => true,
-					CURLOPT_ENCODING => '',
-					CURLOPT_MAXREDIRS => 10,
-					CURLOPT_TIMEOUT => 0,
-					CURLOPT_FOLLOWLOCATION => true,
-					CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-					CURLOPT_CUSTOMREQUEST => 'POST',
-					CURLOPT_POSTFIELDS =>'{
+			if($order->get_shipping_address_1())
+			{
+				$post_fields = '{
 								"merchant_id" : "MID01",
 								"merchant_name": "Chipotle",
 								"subtotal" : '.$subtotal.',
@@ -292,7 +305,7 @@ function wc_tensile_payments_gateway_init() {
 								"items" : '.$oitems.',
 								"variable_tax" : false,
 								"variable_shipping" : false,
-								"shipping_required" : false,
+								"shipping_required" : '.$shipping_required.',
 								"redirect_uri_success" : "'.$success_redirect_url.'",
 								"redirect_uri_cancel" : "'.$cancel_redirect_url.'",
 								"payment_type": "one-off",
@@ -309,7 +322,40 @@ function wc_tensile_payments_gateway_init() {
 									"email": "'.$order->get_billing_email().'",
 									"phone_number": "'.$order->get_billing_phone().'"
 								}
-							}', 
+							}';
+			}
+			else
+			{
+				$post_fields = '{
+								"merchant_id" : "MID01",
+								"merchant_name": "Chipotle",
+								"subtotal" : '.$subtotal.',
+								"total" : '.$total.',
+								"items" : '.$oitems.',
+								"variable_tax" : false,
+								"variable_shipping" : false,
+								"shipping_required" : '.$shipping_required.',
+								"redirect_uri_success" : "'.$success_redirect_url.'",
+								"redirect_uri_cancel" : "'.$cancel_redirect_url.'",
+								"payment_type": "one-off",
+								"user_info": {
+									"first_name": "'.$order->get_billing_first_name().'",
+									"last_name": "'.$order->get_billing_last_name().'",
+									"email": "'.$order->get_billing_email().'",
+									"phone_number": "'.$order->get_billing_phone().'"
+								}
+							}';
+			}
+			curl_setopt_array($curl, array(
+					CURLOPT_URL => $api_endpoint,
+					CURLOPT_RETURNTRANSFER => true,
+					CURLOPT_ENCODING => '',
+					CURLOPT_MAXREDIRS => 10,
+					CURLOPT_TIMEOUT => 0,
+					CURLOPT_FOLLOWLOCATION => true,
+					CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+					CURLOPT_CUSTOMREQUEST => 'POST',
+					CURLOPT_POSTFIELDS =>$post_fields, 
 					CURLOPT_HTTPHEADER => array(
 								'correlation-id: yooo',
 								'client_id:'.$clientid,
@@ -319,7 +365,6 @@ function wc_tensile_payments_gateway_init() {
 								'Content-Type: application/json'
 				  ),
 			));
-
 			$response = curl_exec($curl);
 
 			curl_close($curl);
@@ -332,15 +377,24 @@ function wc_tensile_payments_gateway_init() {
 				
 				$rurl = $checkout_app_url.'/'.$res['payment_id'];
 				/* $order->update_status('completed', __( 'Completed', 'woocommerce' )); */
-				
+				update_post_meta( $order_id, 'transaction_id',$res['payment_id']);
 				return array(
 					'result' => 'success',
 					'redirect' => $rurl
-				);
+				); 
+				
 			}
 			
 			exit;
 		}
 	
   } // end \WC_Gateway_Offline class
+}
+/**
+ * Display field value on the order edit page
+ */
+add_action( 'woocommerce_admin_order_data_after_billing_address', 'display_transactionid_admin_order_meta', 10, 1 );
+
+function display_transactionid_admin_order_meta($order){
+    echo '<p><strong>'.__('Transaction Id').':</strong> <br/>' . get_post_meta( $order->get_id(), 'transaction_id', true ) . '</p>';
 }
