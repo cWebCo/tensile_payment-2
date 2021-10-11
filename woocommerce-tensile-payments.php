@@ -92,6 +92,8 @@ function wc_tensile_payments_gateway_init() {
 			$this->instructions = $this->get_option( 'instructions', $this->instructions );
 			$this->api_endpoint = $this->get_option( 'api_endpoint', $this->api_endpoint );
 			$this->checkout_app_url = $this->get_option( 'checkout_app_url', $this->checkout_app_url );
+			$this->sandbox_api_endpoint = $this->get_option( 'sandbox_api_endpoint', $this->sandbox_api_endpoint );
+			$this->sandbox_checkout_app_url = $this->get_option( 'sandbox_checkout_app_url', $this->sandbox_checkout_app_url );
 			$this->testmode = $this->get_option( 'testmode', $this->testmode );
 			$this->sandbox_client_id = $this->get_option( 'sandbox_client_id', $this->client_id );
 			$this->sandbox_client_secret = $this->get_option( 'sandbox_client_secret', $this->client_secret );
@@ -145,6 +147,14 @@ function wc_tensile_payments_gateway_init() {
 					'description' => __( 'Instructions that will be added to the thank you page and emails.', 'wc-tensile-payments' ),
 					'default'     => '',
 					'desc_tip'    => true,
+				),
+				'sandbox_api_endpoint' => array(
+					'title'       => 'Sandbox API Endpoint',
+					'type'        => 'text'
+				),
+				'sandbox_checkout_app_url' => array(
+					'title'       => 'Sandbox Checkout App Url',
+					'type'        => 'text'
 				),
 				'api_endpoint' => array(
 					'title'       => 'API Endpoint',
@@ -201,10 +211,65 @@ function wc_tensile_payments_gateway_init() {
 		/**
 		process refund 
 		**/
-		/* public function process_refund($order_id, $amount = null, $reason = '')
+		public function process_refund($order_id, $amount = null, $reason = '')
 		{
-			return true;
-		} */
+			global $wpdb;
+			global $woocommerce;
+			$tensiledata = get_option('woocommerce_woocommerce_tensile_payments_settings');
+			if($tensiledata['testmode'] == 'yes')
+			{
+				$clientid = $tensiledata['sandbox_client_id'];
+				$clientsecret = $tensiledata['sandbox_client_secret'];
+				$api_endpoint = $tensiledata['sandbox_api_endpoint'];			
+				$checkout_app_url = $tensiledata['sandbox_checkout_app_url'];	
+			}
+			else
+			{
+				$clientid = $tensiledata['client_id'];
+				$clientsecret = $tensiledata['client_secret'];
+				$api_endpoint = $tensiledata['api_endpoint'];			
+				$checkout_app_url = $tensiledata['checkout_app_url'];	
+			}	
+				
+			$payment_id = get_post_meta($order_id,'transaction_id',true);
+			$curl = curl_init();
+			$url = $api_endpoint.'/refunds';
+			curl_setopt_array($curl, array(
+			  CURLOPT_URL => $url,
+			  CURLOPT_RETURNTRANSFER => true,
+			  CURLOPT_ENCODING => '',
+			  CURLOPT_MAXREDIRS => 10,
+			  CURLOPT_TIMEOUT => 0,
+			  CURLOPT_FOLLOWLOCATION => true,
+			  CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+			  CURLOPT_CUSTOMREQUEST => 'POST',
+			  CURLOPT_POSTFIELDS =>'{
+						"payment_id": "'.$payment_id.'",
+						"amount" : '.$amount.',
+						"reason": "'.$reason.'",
+						"platform_name": "Woocommerce",
+						"platform_order_id": "'.$order_id.'"
+					}',
+			  CURLOPT_HTTPHEADER => array(
+				'correlation-id: yooo',
+				'client_id:'.$clientid,
+				'client_secret:'.$clientsecret,
+				'Accept: application/json;v=2',
+				'Content-Type: application/json'
+			  ),
+			));
+
+			$response = curl_exec($curl);
+
+			curl_close($curl);
+			$res = json_decode($response,true);
+			if($res['status'] == 'ok')
+			{
+				return true;
+			}
+			
+			
+		} 
 	
 	
 		/**
@@ -237,18 +302,22 @@ function wc_tensile_payments_gateway_init() {
 			{
 				$clientid = $tensiledata['sandbox_client_id'];
 				$clientsecret = $tensiledata['sandbox_client_secret'];
+				$api_endpoint = $tensiledata['sandbox_api_endpoint'];			
+				$checkout_app_url = $tensiledata['sandbox_checkout_app_url'];	
 			}
 			else
 			{
 				$clientid = $tensiledata['client_id'];
 				$clientsecret = $tensiledata['client_secret'];
+				$api_endpoint = $tensiledata['api_endpoint'];			
+				$checkout_app_url = $tensiledata['checkout_app_url'];	
 			}	
-			$api_endpoint = $tensiledata['api_endpoint'];			
-			$checkout_app_url = $tensiledata['checkout_app_url'];			
+					
 			
 			$order = wc_get_order( $order_id );
 			$subtotal = $order->get_subtotal();
 			$total = $order->get_total();
+			echo $tax = $order->get_total_tax();
 			$oitems = '[';
 			// Get and Loop Over Order Items
 			foreach ( $order->get_items() as $item_id => $item ) {
@@ -282,19 +351,9 @@ function wc_tensile_payments_gateway_init() {
 				$shipping_required = 'false';
 			}
 			$oitems .= ']';
-			/* $data = '{';
-			$data .= '"subtotal":"'.$subtotal.'",';
-			$data .= '"total":"'.$total.'",';
-			$data .= '"items":"'.$oitems.'",';
-			$data .= '"variable_tax":"'.$shipping_required.'",';
-			$data .= '"variable_shipping":"false",';
-			$data .= '"shipping_required":"false",';
-			$data .= '"redirect_uri_success":"google.com",';
-			$data .= '"redirect_uri_cancel":"google.com",';
-			$data .= '"payment_type":"one-off"';
-			$data .= '}'; */
-			$curl = curl_init();
 			
+			$curl = curl_init();
+			$url = $api_endpoint.'/payments';
 			if($order->get_shipping_address_1())
 			{
 				$post_fields = '{
@@ -309,6 +368,9 @@ function wc_tensile_payments_gateway_init() {
 								"redirect_uri_success" : "'.$success_redirect_url.'",
 								"redirect_uri_cancel" : "'.$cancel_redirect_url.'",
 								"payment_type": "one-off",
+								"platform_name":"woocommerce",
+								"platform_order_id":"'.$order_id.'",
+								"tax":10,
 								"shipping_address": {
 									"address_line_1": "'.$order->get_shipping_address_1().'",
 									"city": "'.$order->get_shipping_city().'",
@@ -338,6 +400,9 @@ function wc_tensile_payments_gateway_init() {
 								"redirect_uri_success" : "'.$success_redirect_url.'",
 								"redirect_uri_cancel" : "'.$cancel_redirect_url.'",
 								"payment_type": "one-off",
+								"platform_name":"woocommerce",
+								"platform_order_id":"'.$order_id.'",
+								"tax":10,
 								"user_info": {
 									"first_name": "'.$order->get_billing_first_name().'",
 									"last_name": "'.$order->get_billing_last_name().'",
@@ -347,7 +412,7 @@ function wc_tensile_payments_gateway_init() {
 							}';
 			}
 			curl_setopt_array($curl, array(
-					CURLOPT_URL => $api_endpoint,
+					CURLOPT_URL => $url,
 					CURLOPT_RETURNTRANSFER => true,
 					CURLOPT_ENCODING => '',
 					CURLOPT_MAXREDIRS => 10,
