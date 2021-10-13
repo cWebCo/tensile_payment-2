@@ -9,8 +9,6 @@
  */
 defined( 'ABSPATH' ) or exit;
 
-/* include plugin_dir_path(__FILE__)."cancel.php";
-include plugin_dir_path(__FILE__)."success.php"; */
 
 // Make sure WooCommerce is active
 if ( ! in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
@@ -148,6 +146,14 @@ function wc_tensile_payments_gateway_init() {
 					'default'     => '',
 					'desc_tip'    => true,
 				),
+				'testmode' => array(
+					'title'       => 'Test mode',
+					'label'       => 'Enable Test Mode',
+					'type'        => 'checkbox',
+					'description' => 'Place the payment gateway in test mode using test API keys.',
+					'default'     => 'yes',
+					'desc_tip'    => true,
+				),
 				'sandbox_api_endpoint' => array(
 					'title'       => 'Sandbox API Endpoint',
 					'type'        => 'text'
@@ -164,14 +170,7 @@ function wc_tensile_payments_gateway_init() {
 					'title'       => 'Checkout App Url',
 					'type'        => 'text'
 				),
-				'testmode' => array(
-					'title'       => 'Test mode',
-					'label'       => 'Enable Test Mode',
-					'type'        => 'checkbox',
-					'description' => 'Place the payment gateway in test mode using test API keys.',
-					'default'     => 'yes',
-					'desc_tip'    => true,
-				),
+				
 				'sandbox_client_id' => array(
 					'title'       => 'Sandbox Client ID',
 					'type'        => 'text'
@@ -314,10 +313,10 @@ function wc_tensile_payments_gateway_init() {
 			}	
 					
 			
-			$order = wc_get_order( $order_id );
-			$subtotal = $order->get_subtotal();
-			$total = $order->get_total();
-			echo $tax = $order->get_total_tax();
+			$order = wc_get_order($order_id);
+			$subtotal = number_format($order->get_subtotal(),2);
+			$total = number_format($order->get_total(),2);
+			$tax1 = number_format($order->get_total_tax(), 2);
 			$oitems = '[';
 			// Get and Loop Over Order Items
 			foreach ( $order->get_items() as $item_id => $item ) {
@@ -357,20 +356,16 @@ function wc_tensile_payments_gateway_init() {
 			if($order->get_shipping_address_1())
 			{
 				$post_fields = '{
-								"merchant_id" : "MID01",
-								"merchant_name": "Chipotle",
 								"subtotal" : '.$subtotal.',
+								"tax":'.$tax1.',
 								"total" : '.$total.',
 								"items" : '.$oitems.',
-								"variable_tax" : false,
-								"variable_shipping" : false,
 								"shipping_required" : '.$shipping_required.',
 								"redirect_uri_success" : "'.$success_redirect_url.'",
 								"redirect_uri_cancel" : "'.$cancel_redirect_url.'",
 								"payment_type": "one-off",
-								"platform_name":"woocommerce",
+								"platform_name":"Woocommerce",
 								"platform_order_id":"'.$order_id.'",
-								"tax":10,
 								"shipping_address": {
 									"address_line_1": "'.$order->get_shipping_address_1().'",
 									"city": "'.$order->get_shipping_city().'",
@@ -389,20 +384,16 @@ function wc_tensile_payments_gateway_init() {
 			else
 			{
 				$post_fields = '{
-								"merchant_id" : "MID01",
-								"merchant_name": "Chipotle",
 								"subtotal" : '.$subtotal.',
+								"tax":'.$tax1.',
 								"total" : '.$total.',
 								"items" : '.$oitems.',
-								"variable_tax" : false,
-								"variable_shipping" : false,
 								"shipping_required" : '.$shipping_required.',
 								"redirect_uri_success" : "'.$success_redirect_url.'",
 								"redirect_uri_cancel" : "'.$cancel_redirect_url.'",
 								"payment_type": "one-off",
-								"platform_name":"woocommerce",
+								"platform_name":"Woocommerce",
 								"platform_order_id":"'.$order_id.'",
-								"tax":10,
 								"user_info": {
 									"first_name": "'.$order->get_billing_first_name().'",
 									"last_name": "'.$order->get_billing_last_name().'",
